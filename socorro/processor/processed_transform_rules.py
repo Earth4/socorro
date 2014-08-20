@@ -154,7 +154,7 @@ class AsyncShutdownTimeout(ProcessedTransformRule):
             rawconditions = loads(raw_crash.AsyncShutdownTimeout)['conditions']
             fragments = []
             for condition in rawconditions:
-                fragments.append(condition.split()[0].split(':')[0])
+                fragments.append(condition['name'].split()[0].split(':')[0])
         except (AssertionError, KeyError, TypeError, ValueError):
             processed_crash.signature = "AsyncShutdownTimeout | unknown"
             return True
