@@ -7,6 +7,7 @@ from nose.tools import eq_, ok_
 from socorro.lib.util import DotDict, SilentFakeLogger
 from socorro.processor.processed_transform_rules import (
     ProcessedTransformRule,
+    AsyncShutdownTimeout,
     OOMSignature,
     SigTrunc,
 )
@@ -56,7 +57,60 @@ class TestProcessedTransformRule(TestCase):
 
 
 class TestOOMSignature(TestCase):
+    
+    def test_AsyncShutdownTimeout_predicate_no_match(self):
+        pc = DotDict()
+        pc.signature = "hello"
+        rc = DotDict()
+        fake_processor = create_basic_fake_processor()
+        rule = AsyncShutdownTimeout()
+        predicate_result = rule.predicate(rc, pc, fake_processor)
+        ok_(not predicate_result)
 
+    def test_AsyncShutdownTimeout_predicate(self):
+        pc = DotDict()
+        pc.signature = 'hello'
+        rc = DotDict()
+        rc.AsyncShutdownTimeout = '{"hi":"there"}'
+        fake_processor = create_basic_fake_processor()
+        rule = OOMSignature()
+        predicate_result = rule.predicate(rc, pc, fake_processor)
+        ok_(predicate_result)
+        
+    def test_AsyncShutdownTimeout_action_success(self):
+        pc = DotDict()
+        pc.signature = 'hello'
+
+        fake_processor = create_basic_fake_processor()
+
+        rc = DotDict()
+
+        rule = AsyncShutdownTimeout()
+        action_result = rule.action(rc, pc, fake_processor)
+
+        ok_(action_result)
+        ok_(pc.original_signature, 'hello')
+        ok_(pc.signature, 'AsyncShutdownTimeout | unknown')
+        
+    def test_AsyncShutdownTimeout_action_success2(self):
+        pc = DotDict()
+        pc.signature = 'hello'
+
+        fake_processor = create_basic_fake_processor()
+
+        rc = DotDict()
+        rc.AsyncShutdownTimeout = ('{"phase":"hi","conditions":[{"name"'
+                                   ':"Foo.jsm: Hi", "state":"(none)"}, '
+                                   '{"name":"Bar.jsm exit:soon", "state'
+                                   '":{"launched":true}}]}')
+
+        rule = AsyncShutdownTimeout()
+        action_result = rule.action(rc, pc, fake_processor)
+
+        ok_(action_result)
+        ok_(pc.original_signature, 'hello')
+        ok_(pc.signature, 'AsyncShutdownTimeout | Bar.jsm | Foo.jsm')
+        
     def test_OOMAllocationSize_predicate_no_match(self):
         pc = DotDict()
         pc.signature = 'hello'
