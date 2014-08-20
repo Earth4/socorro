@@ -10,7 +10,7 @@ from socorro.lib.ver_tools import normalize
 from socorro.lib.util import DotDict
 
 from sys import maxint
-
+from json import loads
 
 #==============================================================================
 class ProcessedTransformRule(object):
@@ -136,6 +136,35 @@ class ProcessedTransformRule(object):
 
 
 #==============================================================================
+class AsyncShutdownTimeout(ProcessedTransformRule):
+    """Tag crashes that result from timeouts in AsyncShutdown.jsm"""
+
+    #--------------------------------------------------------------------------
+    def version(self):
+        return '1.0'
+
+    #--------------------------------------------------------------------------
+    def _predicate(self, raw_crash, processed_crash, processor):
+        return 'AsyncShutdownTimeout' in raw_crash
+
+    #--------------------------------------------------------------------------
+    def _action(self, raw_crash, processed_crash, processor):
+        processed_crash.original_signature = processed_crash.signature
+        try:
+            rawconditions = loads(raw_crash.AsyncShutdownTimeout)['conditions']
+            fragments = []
+            for condition in rawconditions:
+                fragments.append(condition.split()[0].split(':')[0])
+        except (AssertionError, KeyError, TypeError, ValueError):
+            processed_crash.signature = "AsyncShutdownTimeout | unknown"
+            return True
+        fragments.sort()
+        processed_crash.signature = "AsyncShutdownTimeout"
+        for fragment in fragments:
+            processed_crash.signature += " | " + fragment
+        return True
+
+#==============================================================================
 class OOMSignature(ProcessedTransformRule):
     """To satisfy Bug 1007530, this rule will modify the signature to
     tag OOM (out of memory) crashes"""
@@ -212,6 +241,7 @@ class SigTrunc(ProcessedTransformRule):
 # processed_crash and processor objects.
 
 default_rules = (
+    (AsyncShutdownTimeout, (), {}, AsyncShutdownTimeout, (), {}),
     (OOMSignature, (), {}, OOMSignature, (), {}),
     (SigTrunc, (), {}, SigTrunc, (), {}),
 )
